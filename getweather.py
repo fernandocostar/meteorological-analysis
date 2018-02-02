@@ -2,10 +2,18 @@ import os
 import schedule
 import time
 import datetime as dt
-import metarformat as mf
+from metar import Metar
+
+
+def write_to_file(filename, data):
+    from json import dump
+    with open(filename, 'w') as fp:
+        dump(data, fp)
+
 
 def coleta(t):
     diretorio_saida = ""
+    ultimo = int(open("ultimo.txt", 'r').readline())
 
     data = (dt.date.today() - dt.timedelta(1)).isoformat()
     wget_inicio = data[:4] + data[5:7] + data[8:] + "00"
@@ -17,15 +25,32 @@ def coleta(t):
 
     arq_in = open("resultado.txt", 'r')
     for i in range(24):
-        arq_out = open(diretorio_saida + wget_inicio[:len(wget_inicio) - 1] + str(i) + ".txt", 'w')
+        d = {}
         linha = arq_in.readline()
-        if "SPECI" in linha:
-            linha = arq_in.readline()
-        arq_out.write(linha)
+        traduzido = Metar.Metar(linha[13:-2])
 
+        vento = traduzido.wind()
+        vento_dir = str(traduzido.wind_dir)
+        vento_vel = vento.split(" ")[2]
+
+        nuvens = traduzido.sky_conditions()
+        visibilidade = traduzido.visibility()
+        temperatura = str(traduzido.temp)
+        pressao = str(traduzido.press)
+
+        d['vento'] = [vento_dir, vento_vel]
+        d['nuvens'] = nuvens
+        d['visibilidade'] = visibilidade
+        d['temperatura'] = temperatura
+        d['pressao'] = pressao
+
+        write_to_file(diretorio_saida+str(ultimo)+".json", d)
+        ultimo += 1
+    open("ultimo.txt", "w").write(str(ultimo))
     return
 
-schedule.every().day.at("20:00").do(coleta,'20:00')
+
+schedule.every().day.at("14:52").do(coleta,'14:52')
 
 while True:
     print(".", end="")
