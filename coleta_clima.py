@@ -1,7 +1,8 @@
 import os
 import schedule
-import time
 import datetime as dt
+import glob
+import time
 from metar import Metar
 
 
@@ -12,21 +13,15 @@ def write_to_file(filename, data):
 
 
 def coleta(t):
-    diretorio_saida = ""
-    ultimo = int(open("ultimo.txt", 'r').readline())
-
-    data = (dt.date.today() - dt.timedelta(1)).isoformat()
-    wget_inicio = data[:4] + data[5:7] + data[8:] + "00"
-    wget_fim = data[:4] + data[5:7] + data[8:] + "23"
-    print("\nColetando em:", data)
-
-    os.system(
-        "wget --user-agent=\"Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)\" --base=\"http://www.redemet.aer.mil.br/api/consulta_automatica/index.php\" --referer=\"http://www.redemet.aer.mil.br/api/consulta_automatica/index.php\" --post-data=\"&local=sbrj&msg=metar&data_ini=" + wget_inicio + "&data_fim=" + wget_fim + "\" -O resultado.txt http://www.redemet.aer.mil.br/api/consulta_automatica/index.php")
-
-    arq_in = open("resultado.txt", 'r')
-    for i in range(24):
+    ultimo_arq = open("ultimo.txt", 'r').read()
+    try:
+        open(ultimo_arq, "r")
+        arquivo_foto = glob.glob('/home/fernando/Documentos/UFF/ic-leandro/'+ultimo_arq)[0]
+        hora = time.strftime('%Y%m%d%H', time.localtime(os.path.getctime(arquivo_foto)))
+        os.system(
+            "wget --user-agent=\"Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)\" --base=\"http://www.redemet.aer.mil.br/api/consulta_automatica/index.php\" --referer=\"http://www.redemet.aer.mil.br/api/consulta_automatica/index.php\" --post-data=\"&local=sbrj&msg=metar&data_ini=" + hora + "&data_fim=" + hora + "\" -O resultado.txt http://www.redemet.aer.mil.br/api/consulta_automatica/index.php")
         d = {}
-        linha = arq_in.readline()
+        linha = open("resultado.txt", 'r').readline()
         traduzido = Metar.Metar(linha[13:-2])
 
         vento = traduzido.wind()
@@ -44,15 +39,24 @@ def coleta(t):
         d['temperatura'] = temperatura
         d['pressao'] = pressao
 
-        write_to_file(diretorio_saida+str(ultimo)+".json", d)
-        ultimo += 1
-    open("ultimo.txt", "w").write(str(ultimo))
+        write_to_file(ultimo_arq[:-4]+".json", d)
+        numeracao = str(int(ultimo_arq[4:-4])+1)
+        numeracao = "DSC_" + "".join(["0"]*(9-len(numeracao))) + numeracao + ".jpg"
+        open("ultimo.txt", "w").write(numeracao)
+        return 1
+    except IOError:
+        return 0
+
+
+def executa(t):
+    while True:
+        if not coleta(t):
+            break
     return
 
-
-schedule.every().day.at("14:52").do(coleta,'14:52')
+schedule.every().day.at("17:30").do(executa,'17:30')
 
 while True:
     print(".", end="")
     schedule.run_pending()
-    time.sleep(60)
+    time.sleep(10)
